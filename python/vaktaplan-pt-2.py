@@ -1,14 +1,22 @@
 import minecart
 import json
 from stuff import *
+from stuff import output_directory, file, filename
+import os
+
+import sys
+# file ='/Users/odinndagur/Code/Github/vaktaplan/venv2/input/11okt10nov.pdf'
+
+# for arg in sys.argv:
+#     if arg.endswith('.pdf'):
+#         file = arg
 
 
 
-file ='/Users/odinndagur/Code/Github/vaktaplan/venv2/input/11okt10nov.pdf'
 colors = set()
 # temp = (cell.text,cell.x1,cell.y1,cell.x2,cell.y2,i,j,ii,r,g,b)
 global cellinfo
-with open('celldata1.json') as f:
+with open(os.path.join(output_directory,'celldata1.json')) as f:
     cellinfo = [dict(x) for x in json.load(f)]
 # print(cellinfo)
 print(len(cellinfo))
@@ -84,7 +92,7 @@ with open(file,"rb") as doc:
     #         colors.add(shape.fill.color.as_rgb())
 # for cell in cellcolors:
 #     print(cell['shifttype'])
-with open('celldatawcolors.json', 'w') as f:
+with open(os.path.join(output_directory,'celldatawcolors.json'), 'w') as f:
         json.dump(cellcolors,f)
 # output = '['
 # for color in colors: 

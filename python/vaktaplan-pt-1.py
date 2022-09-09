@@ -3,11 +3,17 @@ import numpy as np
 import pandas as pd
 import json
 from stuff import *
-from stuff import output_directory, tablestocellinfo
+from stuff import output_directory, tablestocellinfo, file, filename
 import os
 
-file = "../input/11okt10nov.pdf"
-file ='/Users/odinndagur/Code/Github/vaktaplan/venv2/input/11okt10nov.pdf'
+import sys
+
+# file ='/Users/odinndagur/Code/Github/vaktaplan/venv2/input/11okt10nov.pdf'
+
+# for arg in sys.argv:
+#     if arg.endswith('.pdf'):
+#         file = arg
+
 
 tables = camelot.read_pdf(file,pages='1-end')
 cellinfo = tablestocellinfo(tables)

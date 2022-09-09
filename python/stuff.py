@@ -3,9 +3,8 @@ import os
 from pathlib import Path
 
 output_directory = os.path.join(Path(__file__).parent.resolve().parent.resolve(),'output')
-
-# path = Path(os.getcwd())
-# output_directory = path.parent.absolute()
+file = '/Users/odinndagur/Code/Github/2022_shifts/input/lokaútgáfa 11.ágúst - 10. sept.pdf'
+filename = os.path.basename(file)
 
 buffer = 0.2
 
@@ -42,6 +41,27 @@ def tablestocellinfo(tables):
                 # print(temp)
     return cellinfo
 
+def alternate_tablestocellinfo(tables):
+    cellinfo = []
+    for table_num,table in enumerate(tables):
+        for row_num,row in enumerate(table.cells):
+            for col_num,cell in enumerate(row):
+                cellinfo.append(
+                    {
+                        'text' : cell.text,
+                        'x1' : cell.x1,
+                        'y1' : cell.y1,
+                        'x2' : cell.x2,
+                        'y2' : cell.y2,
+                        'shifttype' : '',
+                        'table' : table_num,
+                        'row' : row_num,
+                        'col' : col_num,
+                    }
+                )
+    return cellinfo
+
+
 def cleanuptables(tables):
     # out = '/Users/odinndagur/Code/Github/vaktaplan/output/'
     docs = []
@@ -77,3 +97,30 @@ def cleanuptables(tables):
 
     first.to_csv(os.path.join(output_directory, "ALLT.csv"))
     return first
+
+def is_first_page(df):
+    for x in df.iloc[:,0].values:
+        if 'Hæf' in x:
+            return True
+    return False
+
+def get_first_date_cell(df):
+    import re
+    for row_idx,row in df.iterrows():
+        for col_idx, cell in enumerate(row):
+            # print(f'row {row_idx}, col {col_idx}, cell: {cell}')
+            if re.match('[0-9][0-9]\.[0-9][0-9]', cell):
+                return col_idx,row_idx
+
+def get_num_pages(tables):
+    counts = []
+    last_first_page = 0
+    for idx,table in enumerate(tables):
+        if is_first_page(table.df):
+            if idx > 0:
+                counts.append(idx - last_first_page)
+                last_first_page = idx
+    if len(set(counts)) == 1:
+        return counts[0]
+    else:
+        return counts

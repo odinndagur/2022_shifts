@@ -2,12 +2,20 @@ import camelot
 import numpy as np
 import pandas as pd
 import json
+import os
 
-from stuff import shiftcolors, getShiftByColor
+from stuff import shiftcolors, getShiftByColor, output_directory, file, filename
+
+import sys
 
 
 # file = "../input/11okt10nov.pdf"
-file ='/Users/odinndagur/Code/Github/vaktaplan/venv2/input/11okt10nov.pdf'
+# file ='/Users/odinndagur/Code/Github/vaktaplan/venv2/input/11okt10nov.pdf'
+
+# for arg in sys.argv:
+#     if arg.endswith('.pdf'):
+#         file = arg
+
 global cellinfo
 
 tables = camelot.read_pdf(file,pages='1-end')
@@ -20,7 +28,7 @@ tables = camelot.read_pdf(file,pages='1-end')
 #             temp = (cell.text,cell.x1-1,cell.y1-1,cell.x2+1,cell.y2+1,i,j,ii,-1,-1,-1)
 #             cellinfo.append(temp)
 #             # print(temp)
-with open('celldatawcolors.json') as f:
+with open(os.path.join(output_directory,'celldatawcolors.json')) as f:
     cellinfo = [dict(x) for x in json.load(f)]
 # print(cellinfo)
 # for table in tables:
@@ -40,29 +48,32 @@ docs = []
 
 
 
-# for i in range(0, tables.n, 2):
-#     df = tables[i].df #even
-#     df2 = tables[i+1].df #odd
+for i in range(0, tables.n, 2):
+    df = tables[i].df #even
+    df2 = tables[i+1].df #odd
 
-#     df2 = df2.iloc[:,1:]
-#     df2.iloc[0,0] = "Starfsmaður"
-#     headers = df2.iloc[0]
-#     # headers.to_csv(out + "headers" + str(i+1) + ".csv")
+    df2 = df2.iloc[:,1:]
+    df2.iloc[0,0] = "Starfsmaður"
+    headers = df2.iloc[0]
+    # headers.to_csv(out + "headers" + str(i+1) + ".csv")
 
-#     df = df.iloc[2: , 1:]
-#     df2 = df2.iloc[1: , :]
+    df = df.iloc[2: , 1:]
+    df2 = df2.iloc[1: , :]
 
-#     df.index = df.index - 1
+    df.index = df.index - 1
 
-#     df.columns = headers
-#     df2.columns = headers
+    df.columns = headers
+    df2.columns = headers
 
 
 
 for cell in cellinfo:
     print(cell['shifttype'])
     # tables[cell['table']].cells[cell['col']][cell['row']].text = cell['text'] + cell['shifttype']
-    tables[cell['table']].df.iloc[cell['row']][cell['col']] = cell['text'] + cell['shifttype']
+    try:
+        tables[cell['table']].df.iloc[cell['row']][cell['col']] = cell['text'] + cell['shifttype']
+    except IndexError:
+        print(f'failed with cell: {cell}')
     # print(tables[cell['table']])
     # if cell['table'] == 0:
     #     text = cell['text']
@@ -88,10 +99,9 @@ for cell in cellinfo:
             # print(tablenumber,colnumber,rownumber)
             # print(df.iloc[colnumber-2][rownumber-1])
 
-print(tables[0].df)
-out = '/Users/odinndagur/Code/Github/vaktaplan/venv2/output'
-for i in range(tables.n):
-    tables[i].df.to_csv(out + 'test' + str(i) + '.csv')
+# print(tables[0].df)
+# for i in range(tables.n):
+#     tables[i].df.to_csv(out + 'test' + str(i) + '.csv')
 
 
 def tablestocellinfo(tables):
@@ -108,7 +118,6 @@ def tablestocellinfo(tables):
                 # print(temp)
     return cellinfo
 
-out = '/Users/odinndagur/Code/Github/vaktaplan/venv2/output'
 for i in range(0,tables.n, 2):
     df = tables[i].df #even
     df2 = tables[i+1].df #odd
@@ -139,4 +148,4 @@ for i in range(len(docs)):
         temp = docs[i].iloc[:,1:]
         first = pd.concat([first, temp], axis=1)
 
-first.to_csv(out + "ALLT.csv")
+first.to_csv(os.path.join(output_directory, os.path.splitext(filename)[0]+'.csv'))
