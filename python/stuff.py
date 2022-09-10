@@ -1,6 +1,8 @@
 import pandas as pd
 import os
 from pathlib import Path
+import pdfplumber
+
 
 output_directory = os.path.join(Path(__file__).parent.resolve().parent.resolve(),'output')
 file = '/Users/odinndagur/Code/Github/2022_shifts/input/lokaútgáfa 11.ágúst - 10. sept.pdf'
@@ -124,3 +126,9 @@ def get_num_pages(tables):
         return counts[0]
     else:
         return counts
+
+def get_pdf_size(filepath):
+    with pdfplumber.open(filepath) as pdf:
+        page_1 = pdf.pages[0]
+    return page_1.height, page_1.width
+
