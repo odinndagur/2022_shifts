@@ -5,11 +5,6 @@ from stuff import output_directory, file, filename
 import os
 
 import sys
-# file ='/Users/odinndagur/Code/Github/vaktaplan/venv2/input/11okt10nov.pdf'
-
-# for arg in sys.argv:
-#     if arg.endswith('.pdf'):
-#         file = arg
 
 
 
