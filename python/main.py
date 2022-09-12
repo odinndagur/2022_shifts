@@ -1,3 +1,4 @@
+from stat import FILE_ATTRIBUTE_INTEGRITY_STREAM
 import camelot
 import numpy as np
 import pandas as pd
@@ -37,7 +38,7 @@ colors =  {
     (255, 255, 255): 'UB',#hvitur
     (80, 138, 160): 'ORLOF',
     (128, 128, 64): '',
-    (128, 128, 128): '',#mediumgrar
+    (128, 128, 128): 'PHA',#mediumgrar
     (128, 0, 64): 'AS',
     }
 
@@ -83,31 +84,46 @@ def old_main():
     total = pd.concat(parts,axis=1,ignore_index=True)
     total.to_csv(os.path.join(output_directory,'output.csv'))
 
-# def process_df():
-
-parts = []
-def new_main():
-    for offset in range(0,len(tables),get_num_pages(tables)): #0, 3, 6
-        pgs = []
-        for page_idx, table in enumerate(tables[offset:offset+get_num_pages(tables)]):#range(offset,offset+get_num_pages(tables),1): #0,1,2 - 3,4,5 - 6,7,8
-            df = table.df.copy()
-            x,y = get_first_date_cell(df)
-            df.columns = df.iloc[y,:]
-            df = df.iloc[y+1:,x-1:]
-            df.reset_index()
-            pgs.append(df)
-        joined = pd.concat([*pgs],axis=0,ignore_index=True)
-        joined.reset_index()
-        parts.append(joined)
-    total = pd.concat([*parts],axis=1,ignore_index=True)
-    total.to_csv(os.path.join(output_directory,'output.csv'))
-    print(f'done, file output to {os.path.join(output_directory,"output.csv")}')
-
-
-
+def process_df(table):
+    df = table.df.copy()
+    x,y = get_first_date_cell(df)
+    df.iloc[y,x-1] = 'Starfsmaður'
+    df.columns = df.iloc[y,:]
+    df = df.iloc[y+1:,x-1:]
+    df = df.set_index('Starfsmaður')
+    return df
 
 add_shift_text()
-new_main()
+
+processed_dfs = [process_df(table) for table in tables]
+
+# concat fyrst
+# concatenated_dfs = [str(offset) + str(idx) for offset in range(0,9,3) for idx in range(3)]
+concatenated_dfs = [pd.concat(processed_dfs[offset:offset+get_num_pages(tables)]) for offset in range(0,tables.n,get_num_pages(tables))]
+
+# síðan join
+output_df = concatenated_dfs[0]
+for df in concatenated_dfs[1:]:
+    output_df = output_df.join(df)
+output_df.to_csv('/Users/odinndagur/Desktop/jaaaaeja.csv')
+
+# pages = [pd.concat([*processed_dfs[offset:offset+get_num_pages(tables)]],axis=0,ignore_index=True) for offset in range(0,tables.n,get_num_pages(tables))]
+# pd.concat([*pages],axis=1,ignore_index=True)
+# parts = []
+# def new_main():
+#     for offset in range(0,len(tables),get_num_pages(tables)): #0, 3, 6
+#         pgs = [process_df(table) for table in tables[offset:offset+get_num_pages(tables)]]
+#         joined = pd.concat([*pgs],axis=0,ignore_index=True)
+#         joined.reset_index()
+#         parts.append(joined)
+#     total = pd.concat([*parts],axis=1,ignore_index=True)
+#     total.to_csv(os.path.join(output_directory,'output.csv'))
+#     print(f'done, file output to {os.path.join(output_directory,"output.csv")}')
+
+
+
+
+# new_main()
 
 
         # first_page = tables[0+offset].df.copy()
