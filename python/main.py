@@ -1,12 +1,50 @@
-from stat import FILE_ATTRIBUTE_INTEGRITY_STREAM
 import camelot
-import numpy as np
 import pandas as pd
-import json
-from stuff import output_directory, tablestocellinfo, file, filename, cleanuptables, is_first_page, get_first_date_cell, get_num_pages, get_pdf_size
 import os
 import sys
 import re
+from numpy import nan
+from pathlib import Path
+import pdfplumber
+
+output_directory = os.path.join(Path(__file__).parent.resolve().parent.resolve(),'output')
+file = sys.argv[1] if sys.argv[1].endswith('pdf') else '/Users/odinndagur/Downloads/vaktaplans_test/vaktaplan11.09-10.10 lokaútgáfa.pdf'
+filename = os.path.basename(file)
+stripped_filename = os.path.splitext(filename)[0]
+filepath = os.path.dirname(file)
+
+
+def is_first_page(df):
+    for x in df.iloc[:,0].values:
+        if 'Hæf' in x:
+            return True
+    return False
+
+def get_first_date_cell(df):
+    import re
+    for row_idx,row in df.iterrows():
+        for col_idx, cell in enumerate(row):
+            # print(f'row {row_idx}, col {col_idx}, cell: {cell}')
+            if re.match('[0-9][0-9]\.[0-9][0-9]', cell):
+                return col_idx,row_idx
+
+def get_num_pages(tables):
+    counts = []
+    last_first_page = 0
+    for idx,table in enumerate(tables):
+        if is_first_page(table.df):
+            if idx > 0:
+                counts.append(idx - last_first_page)
+                last_first_page = idx
+    if len(set(counts)) == 1:
+        return counts[0]
+    else:
+        return counts
+
+def get_pdf_size(filepath):
+    with pdfplumber.open(filepath) as pdf:
+        page_1 = pdf.pages[0]
+    return page_1.height, page_1.width
 
 from pdf2image import convert_from_path
 pdfs = convert_from_path(file)
@@ -19,12 +57,17 @@ def get_color(img,cell):
     x = ((cell.x1 + cell.x2)/2)/w * new_w
     return img.getpixel((x,y))
 
-tables = camelot.read_pdf(file,pages='1-end',flavor='lattice',line_scale=20)
-colors = set()
-for idx, table in enumerate(tables):
-    for row in table.cells:
-        for cell in row:
-            colors.add(get_color(pdfs[idx],cell))
+# tables = camelot.read_pdf(file,pages='1-end',flavor='lattice',line_scale=20,line_tol=5)
+tables = camelot.read_pdf(file,pages='1-end',flavor='lattice',line_scale=50,line_tol=1)
+
+def get_colors_from_tables():
+    colors = set()
+    for idx, table in enumerate(tables):
+        for row in table.cells:
+            for cell in row:
+                colors.add(get_color(pdfs[idx],cell))
+    return colors
+
 colors =  {
     (255, 255, 0): 'GH', #gulur
     (198, 198, 198): '',#ljosgrar
@@ -91,6 +134,7 @@ def process_df(table):
     df.columns = df.iloc[y,:]
     df = df.iloc[y+1:,x-1:]
     df = df.set_index('Starfsmaður')
+    df = df.replace('',nan).dropna(how='all').replace(nan,'')
     return df
 
 add_shift_text()
@@ -105,7 +149,7 @@ concatenated_dfs = [pd.concat(processed_dfs[offset:offset+get_num_pages(tables)]
 output_df = concatenated_dfs[0]
 for df in concatenated_dfs[1:]:
     output_df = output_df.join(df)
-output_df.to_csv('/Users/odinndagur/Desktop/jaaaaeja.csv')
+output_df.to_csv(os.path.join(filepath,stripped_filename + '.csv'))
 
 # pages = [pd.concat([*processed_dfs[offset:offset+get_num_pages(tables)]],axis=0,ignore_index=True) for offset in range(0,tables.n,get_num_pages(tables))]
 # pd.concat([*pages],axis=1,ignore_index=True)
