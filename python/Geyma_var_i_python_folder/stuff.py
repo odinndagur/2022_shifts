@@ -6,7 +6,6 @@ import pdfplumber
 
 output_directory = os.path.join(Path(__file__).parent.resolve().parent.resolve(),'output')
 file = '/Users/odinndagur/Code/Github/2022_shifts/input/lokaútgáfa 11.ágúst - 10. sept.pdf'
-file = '/Users/odinndagur/Code/Github/2022_shifts/input/11okt10nov.pdf'
 filename = os.path.basename(file)
 
 buffer = 0.2
