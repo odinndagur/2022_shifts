@@ -10,26 +10,72 @@ import datetime
 from collections import defaultdict
 import docx
 
-output_directory = os.path.join(Path(__file__).parent.resolve().parent.resolve(),'output')
-file = sys.argv[1] if sys.argv[1].endswith('pdf') else '/Users/odinndagur/Downloads/vaktaplans_test/vaktaplan11.09-10.10 lokaútgáfa.pdf'
-filename = os.path.basename(file)
-stripped_filename = os.path.splitext(filename)[0]
+import argparse
+import sys
+
+parser = argparse.ArgumentParser()
+parser.add_argument('file')
+parser.add_argument('-p','--list-people', action='store_true')
+parser.add_argument('-d','--dayplans', action='store_true')
+parser.add_argument('-o','--output-folder')
+args = parser.parse_args(sys.argv[1:])
+
+file = args.file
+output_directory = args.output_folder if args.output_folder else os.path.join(os.path.dirname(file),'vaktaplan_output')
+if not os.path.isdir(output_directory):
+    os.makedirs(output_directory,exist_ok=True)
+
+stripped_filename = os.path.splitext(os.path.basename(file))[0]
 print(f'running on file: {file}')
 
-from pdf2image import convert_from_path
-pdfs = convert_from_path(file)
-with pdfplumber.open(file) as pdf:
-    page_1 = pdf.pages[0]
-h,w = page_1.height, page_1.width
-new_h,new_w = pdfs[0].height, pdfs[0].width
+def main():
+    print(f'''
+    To list people add --list-people or -p.
+    To get dayplans add --dayplans or -d.
+    To add specific output folder add --output-folder or -o.
+    ''')
+    if file.endswith('.pdf'):
+        global h,w,new_h,new_w,pdfs
+        from pdf2image import convert_from_path
+        pdfs = convert_from_path(file)
+        with pdfplumber.open(file) as pdf:
+            page_1 = pdf.pages[0]
+        h,w = page_1.height, page_1.width
+        new_h,new_w = pdfs[0].height, pdfs[0].width
 
-# tables = camelot.read_pdf(file,pages='1-end',flavor='lattice',line_scale=20,line_tol=5)
-tables = camelot.read_pdf(file,pages='1-end',flavor='lattice',line_scale=50,line_tol=1)
+        tables = camelot.read_pdf(file,pages='1-end',flavor='lattice',line_scale=50,line_tol=1)
+        add_shift_text(tables)
+        processed_dfs = [process_df(table) for table in tables]
+        # concat fyrst
+        concatenated_dfs = [pd.concat(processed_dfs[offset:offset+get_num_pages(tables)]) for offset in range(0,tables.n,get_num_pages(tables))]
+        # síðan join
+        output_df = concatenated_dfs[0]
+        for df in concatenated_dfs[1:]:
+            output_df = output_df.join(df)
+        print(f'Saving to {output_directory} as {stripped_filename}.csv')
+        output_df.to_csv(os.path.join(output_directory,stripped_filename + '.csv'))
+    if file.endswith('.csv'):
+        output_df = pd.read_csv(file,index_col=0,header=0)
+    if args.dayplans:
+        for day in get_days(output_df):
+            doc_from_date_day(day)
+    if args.list_people:
+        print('')
+        for p in get_people(output_df):
+            print(p)
+        print('')
+        # print(get_people(output_df))
+    print(f'all done')
+
+def get_people(df):
+    return [p for p in list(df.index) if len(p)]
 
 def get_days(df): #yields generator
     for idx in range(len(df.columns)):
         day = defaultdict(lambda: defaultdict(list))
-        slice = df.iloc[:,idx].dropna()
+        slice = df.iloc[:,idx].replace('',nan).dropna()
+        if not len(slice):
+            continue
         day['date']['date'] = slice.name
         # date = slice.name
         for row_idx, shift in enumerate(slice):
@@ -55,12 +101,12 @@ def get_days(df): #yields generator
                         col = 'nv'
                     if 20 < endhr <= 24:
                         col = 'kv'
-                    print(person,starthr,endhr,type,col)
+                    # print(person,starthr,endhr,type,col)
                     day[type][col].append(','.join([person,time,type,col]))
         yield day
 
 def doc_from_date_day(day):
-    print(f'day {day}')
+    print(f'Making dayplan for {day["date"]["date"][:5]}')
     date = day['date']['date']
     doc = docx.Document('python/fim_proto.docx')
     for col_idx,col in enumerate(doc.tables[1].columns):
@@ -86,9 +132,7 @@ def doc_from_date_day(day):
                 if not shift[0] in day:
                     cell.paragraphs[0].clear()
                 else:
-                    # print(cell.text)
                     if shift[1] in day[shift[0]]:
-                        # ppl = [' '.join(p.split(',')[:2]) for p in day[shift[0]][shift[1]]]
                         temp = ' ' if 'NV' in shift[0] else '\n'
                         ppl = [
                             p.split(',')[0].split(' ')[0] + temp + p.split(',')[1] for p in day[shift[0]][shift[1]]
@@ -96,23 +140,15 @@ def doc_from_date_day(day):
                         ppl = sorted(ppl, key=lambda x: int(x.split(temp)[-1].split(':')[0]))
                         p = cell.paragraphs[0]
                         p.clear()
-
-                        # for p in ppl:
-
                         p.add_run('\n'.join(ppl))
-                        # cell.text.
-                        # print(cell.text,'\n\t',day[shift[0]][shift[1]])
-                    # else:
-                    #     cell.paragraphs[0].clear()
-                # else:
-                #     cell.paragraphs[0].clear()
+
 
     for col_idx,col in enumerate(doc.tables[1].columns):
         for cell in doc.tables[1].column_cells(col_idx):
             if re.match('\D{2,3} [a-z]{2}',cell.text.strip()):
                 cell.paragraphs[0].clear()
     date_str = date.split('\n')[0]
-    output_filename = os.path.join('output',f'{date_str} editad.docx')
+    output_filename = os.path.join(output_directory,f'{date_str} editad.docx')
     doc.save(output_filename)
     # os.system(f'open {os.path.join(os.getcwd(),output_filename)}')
     return doc
@@ -162,7 +198,7 @@ def get_color(img,cell):
     x = ((cell.x1 + cell.x2)/2)/w * new_w
     return img.getpixel((x,y))
 
-def get_colors_from_tables():
+def get_colors_from_tables(tables):
     colors = set()
     for idx, table in enumerate(tables):
         for row in table.cells:
@@ -187,7 +223,7 @@ colors =  {
     (128, 0, 64): 'AS',
     }
 
-def add_shift_text():
+def add_shift_text(tables):
     for page_num,table in enumerate(tables):
         df = table.df
         for row_num,row in enumerate(table.cells):
@@ -203,22 +239,8 @@ def process_df(table):
     df.columns = df.iloc[y,:]
     df = df.iloc[y+1:,x-1:]
     df = df.set_index('Starfsmaður')
-    df = df.replace('',nan).dropna(how='all').replace(nan,'')
+    df = df.replace('',nan).dropna(how='all',axis=1).replace(nan,'')
     return df
 
-add_shift_text()
-
-processed_dfs = [process_df(table) for table in tables]
-# concat fyrst
-# concatenated_dfs = [str(offset) + str(idx) for offset in range(0,9,3) for idx in range(3)]
-concatenated_dfs = [pd.concat(processed_dfs[offset:offset+get_num_pages(tables)]) for offset in range(0,tables.n,get_num_pages(tables))]
-# síðan join
-output_df = concatenated_dfs[0]
-for df in concatenated_dfs[1:]:
-    output_df = output_df.join(df)
-print(f'saving to {output_directory} as {stripped_filename}.csv')
-output_df.to_csv(os.path.join(output_directory,stripped_filename + '.csv'))
-print(f'done saving, now making word documents')
-for day in get_days(output_df):
-    doc_from_date_day(day)
-print(f'all done')
+if __name__ == '__main__':
+    main()
