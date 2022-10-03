@@ -8,7 +8,7 @@ def get_weekday(year=None, month=None, day=None):
         raise ValueError('Need to input date')
     currentDate = datetime.datetime.today()
     if not year:
-        if int(month) < currentDate.month:
+        if int(month) < currentDate.month and currentDate.month > 10:
             year = currentDate.year + 1
         else:
             year = currentDate.year

@@ -11,7 +11,8 @@ output_directory = os.path.join(Path(__file__).parent.resolve().parent.resolve()
 file = sys.argv[1] if sys.argv[1].endswith('pdf') else '/Users/odinndagur/Downloads/vaktaplans_test/vaktaplan11.09-10.10 lokaútgáfa.pdf'
 filename = os.path.basename(file)
 stripped_filename = os.path.splitext(filename)[0]
-filepath = os.path.dirname(file)
+
+print(f'running on file: {file}')
 
 
 def is_first_page(df):
@@ -149,7 +150,7 @@ concatenated_dfs = [pd.concat(processed_dfs[offset:offset+get_num_pages(tables)]
 output_df = concatenated_dfs[0]
 for df in concatenated_dfs[1:]:
     output_df = output_df.join(df)
-output_df.to_csv(os.path.join(filepath,stripped_filename + '.csv'))
+output_df.to_csv(os.path.join(output_directory,stripped_filename + '.csv'))
 
 # pages = [pd.concat([*processed_dfs[offset:offset+get_num_pages(tables)]],axis=0,ignore_index=True) for offset in range(0,tables.n,get_num_pages(tables))]
 # pd.concat([*pages],axis=1,ignore_index=True)
