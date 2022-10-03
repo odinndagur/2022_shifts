@@ -9,6 +9,7 @@ import pdfplumber
 import datetime
 from collections import defaultdict
 import docx
+from math import ceil,floor
 
 import argparse
 import sys
@@ -18,23 +19,27 @@ parser.add_argument('file')
 parser.add_argument('-p','--list-people', action='store_true')
 parser.add_argument('-d','--dayplans', action='store_true')
 parser.add_argument('-o','--output-folder')
+parser.add_argument('-n', '--name')
+parser.add_argument('-s','--save-csv', help='save intermediate table as csv')
 args = parser.parse_args(sys.argv[1:])
 
 file = args.file
 output_directory = args.output_folder if args.output_folder else os.path.join(os.path.dirname(file),'vaktaplan_output')
 if not os.path.isdir(output_directory):
     os.makedirs(output_directory,exist_ok=True)
-
 stripped_filename = os.path.splitext(os.path.basename(file))[0]
+
 print(f'running on file: {file}')
 
 def main():
+    global output_df
     print(f'''
     To list people add --list-people or -p.
     To get dayplans add --dayplans or -d.
     To add specific output folder add --output-folder or -o.
     ''')
     if file.endswith('.pdf'):
+        print('processing pdf')
         global h,w,new_h,new_w,pdfs
         from pdf2image import convert_from_path
         pdfs = convert_from_path(file)
@@ -52,20 +57,41 @@ def main():
         output_df = concatenated_dfs[0]
         for df in concatenated_dfs[1:]:
             output_df = output_df.join(df)
-        print(f'Saving to {output_directory} as {stripped_filename}.csv')
-        output_df.to_csv(os.path.join(output_directory,stripped_filename + '.csv'))
+        if args.save_csv:
+            print(f'Saving to {output_directory} as {stripped_filename}.csv')
+            output_df.to_csv(os.path.join(output_directory,stripped_filename + '.csv'))
+
     if file.endswith('.csv'):
         output_df = pd.read_csv(file,index_col=0,header=0)
+
     if args.dayplans:
-        for day in get_days(output_df):
+        print(f'Generating docx files..')
+        days = list(get_days(output_df))
+        for idx, day in enumerate(days):
+            temp_date = day['date']['date'].split('\n')[0]
+            progress_bar_length = 100
+            current_progress = ceil(idx/len(days) * progress_bar_length)
+            progress_bar = f'[{"#" * current_progress}{" " * floor(progress_bar_length - current_progress)}]'
+            print(f'\rMaking dayplan for {temp_date}...{progress_bar}',end='')
             doc_from_date_day(day)
+        progress_bar = f'[{"#" * progress_bar_length}]'
+        print(f'\rMaking dayplan for {temp_date}...{progress_bar}')
     if args.list_people:
         print('')
         for p in get_people(output_df):
             print(p)
         print('')
-        # print(get_people(output_df))
-    print(f'all done')
+    
+    if args.name:
+        print()
+        for shift in get_shifts_for_person(output_df,args.name):
+            print(shift)
+        print()
+    print(f'All done!')
+
+def get_shifts_for_person(df,person):
+    shifts = df.loc[person].replace('',nan).dropna()
+    return [f'{date.split(chr(10))[0]} {shift}' for date,shift in zip(shifts.index,shifts.values)]
 
 def get_people(df):
     return [p for p in list(df.index) if len(p)]
@@ -106,7 +132,6 @@ def get_days(df): #yields generator
         yield day
 
 def doc_from_date_day(day):
-    print(f'Making dayplan for {day["date"]["date"][:5]}')
     date = day['date']['date']
     doc = docx.Document('python/fim_proto.docx')
     for col_idx,col in enumerate(doc.tables[1].columns):
@@ -239,7 +264,7 @@ def process_df(table):
     df.columns = df.iloc[y,:]
     df = df.iloc[y+1:,x-1:]
     df = df.set_index('Starfsmaður')
-    df = df.replace('',nan).dropna(how='all',axis=1).replace(nan,'')
+    df = df.replace('',nan).dropna(how='all').dropna(how='all',axis=1).replace(nan,'')
     return df
 
 if __name__ == '__main__':
