@@ -6,6 +6,12 @@ import re
 from numpy import nan
 from pathlib import Path
 import pdfplumber
+import datetime
+
+from collections import defaultdict
+import sys
+import docx
+
 
 output_directory = os.path.join(Path(__file__).parent.resolve().parent.resolve(),'output')
 file = sys.argv[1] if sys.argv[1].endswith('pdf') else '/Users/odinndagur/Downloads/vaktaplans_test/vaktaplan11.09-10.10 lokaútgáfa.pdf'
@@ -14,6 +20,110 @@ stripped_filename = os.path.splitext(filename)[0]
 
 print(f'running on file: {file}')
 
+
+def get_days(df): #yields generator
+    for idx in range(len(df.columns)):
+        day = defaultdict(lambda: defaultdict(list))
+        slice = df.iloc[:,idx].dropna()
+        day['date']['date'] = slice.name
+        # date = slice.name
+        for row_idx, shift in enumerate(slice):
+            person = slice.index[row_idx]
+            if all([shift != 'ORLOF',shift]):
+                time, type = shift.split(' ')
+                if type == 'UB':
+                    day['UB']['ub'].append(' '.join([person,time]))
+                else:
+                    starttime,endtime = time.split('-')
+                    starthr = int(starttime.split(':')[0])
+                    endhr = int(endtime.split(':')[0])
+                    if 0 < starthr < 12:
+                        if endhr > 16:
+                            col = 'dv'
+                        else:
+                            col = 'mv'
+                    if 12 <= starthr < 16:
+                        col = 'dv'
+                    if 16 <= starthr < 23:
+                        col = 'kv'
+                    if 23 <= starthr <= 24:
+                        col = 'nv'
+                    if 20 < endhr <= 24:
+                        col = 'kv'
+                    print(person,starthr,endhr,type,col)
+                    day[type][col].append(','.join([person,time,type,col]))
+        yield day
+
+def doc_from_date_day(day):
+    print(f'day {day}')
+    date = day['date']['date']
+    doc = docx.Document('python/fim_proto.docx')
+    for col_idx,col in enumerate(doc.tables[1].columns):
+        for cell in doc.tables[1].column_cells(col_idx):
+            if cell.text.strip() == 'dags':
+                p = cell.paragraphs[0]
+                p.clear()
+                p.add_run(date.split('\n')[0])
+            if cell.text.strip() == 'UB':
+                p = cell.paragraphs[0]
+                p.clear()
+                p.add_run('\n'.join(day['UB']['ub']))
+            if cell.text.strip() == 'vikudags':
+                p = cell.paragraphs[0]
+                p.clear()
+                decimal_date = date.split('\n')[0]
+                if decimal_date:
+                    date_day, date_month = decimal_date.split('.')
+                    weekday = get_weekday(month = date_month, day = date_day)
+                    p.add_run(weekday)
+            if re.match('\D{2,3} [a-z]{2}',cell.text.strip()):
+                shift = cell.text.split(' ')
+                if not shift[0] in day:
+                    cell.paragraphs[0].clear()
+                else:
+                    # print(cell.text)
+                    if shift[1] in day[shift[0]]:
+                        # ppl = [' '.join(p.split(',')[:2]) for p in day[shift[0]][shift[1]]]
+                        temp = ' ' if 'NV' in shift[0] else '\n'
+                        ppl = [
+                            p.split(',')[0].split(' ')[0] + temp + p.split(',')[1] for p in day[shift[0]][shift[1]]
+                        ]
+                        ppl = sorted(ppl, key=lambda x: int(x.split(temp)[-1].split(':')[0]))
+                        p = cell.paragraphs[0]
+                        p.clear()
+
+                        # for p in ppl:
+
+                        p.add_run('\n'.join(ppl))
+                        # cell.text.
+                        # print(cell.text,'\n\t',day[shift[0]][shift[1]])
+                    # else:
+                    #     cell.paragraphs[0].clear()
+                # else:
+                #     cell.paragraphs[0].clear()
+
+    for col_idx,col in enumerate(doc.tables[1].columns):
+        for cell in doc.tables[1].column_cells(col_idx):
+            if re.match('\D{2,3} [a-z]{2}',cell.text.strip()):
+                cell.paragraphs[0].clear()
+    date_str = date.split('\n')[0]
+    output_filename = os.path.join('output',f'{date_str} editad.docx')
+    doc.save(output_filename)
+    # os.system(f'open {os.path.join(os.getcwd(),output_filename)}')
+    return doc
+
+def get_weekday(year=None, month=None, day=None):
+    days = ["Mánudagur", "Þriðjudagur", "Miðvikudagur", "Fimmtudagur", "Föstudagur", "Laugardagur", "Sunnudagur"]
+    if not any([year,month,day]):
+        raise ValueError('Need to input date')
+    currentDate = datetime.datetime.today()
+    if not year:
+        if int(month) < currentDate.month and currentDate.month > 10:
+            year = currentDate.year + 1
+        else:
+            year = currentDate.year
+    inputDate = datetime.date(year=year,month=int(month),day=int(day))
+    return days[inputDate.weekday()]
 
 def is_first_page(df):
     for x in df.iloc[:,0].values:
@@ -150,7 +260,13 @@ concatenated_dfs = [pd.concat(processed_dfs[offset:offset+get_num_pages(tables)]
 output_df = concatenated_dfs[0]
 for df in concatenated_dfs[1:]:
     output_df = output_df.join(df)
+print(f'saving to {output_directory} as {stripped_filename}.csv')
 output_df.to_csv(os.path.join(output_directory,stripped_filename + '.csv'))
+
+print(f'done saving, now making word documents')
+for day in get_days(output_df):
+    doc_from_date_day(day)
+print(f'all done')
 
 # pages = [pd.concat([*processed_dfs[offset:offset+get_num_pages(tables)]],axis=0,ignore_index=True) for offset in range(0,tables.n,get_num_pages(tables))]
 # pd.concat([*pages],axis=1,ignore_index=True)

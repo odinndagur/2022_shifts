@@ -19,7 +19,8 @@ def get_days(df):
     for idx in range(len(df.columns)):
         day = defaultdict(lambda: defaultdict(list))
         slice = df.iloc[:,idx].dropna()
-        date = slice.name
+        day['date']['date'] = slice.name
+        # date = slice.name
         for row_idx, shift in enumerate(slice):
             person = slice.index[row_idx]
             if shift != 'ORLOF':
@@ -45,7 +46,7 @@ def get_days(df):
                         col = 'kv'
                     print(person,starthr,endhr,type,col)
                     day[type][col].append(','.join([person,time,type,col]))
-        yield date, day
+        yield day
 
 # day = defaultdict(lambda: defaultdict(list))
 # date = df.columns[1]
@@ -92,8 +93,9 @@ def get_days(df):
 #                 else:
 #                     if re.match('\D{2,3} \D{2}',cell.text):
 #                         cell.paragraphs[0].clear()
-for date,day in get_days(df):
-    print(f'date {date} day {day}')
+def doc_from_date_day(day):
+    print(f'day {day}')
+    date = day['date']['date']
     doc = docx.Document('fim_proto.docx')
     for col_idx,col in enumerate(doc.tables[1].columns):
         for cell in doc.tables[1].column_cells(col_idx):
