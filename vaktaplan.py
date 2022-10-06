@@ -1,3 +1,4 @@
+#!/Users/odinndagur/.odb/vaktaplan/camelot-env/bin/python3
 import camelot
 import pandas as pd
 import os
