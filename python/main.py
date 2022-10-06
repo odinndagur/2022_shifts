@@ -89,6 +89,13 @@ def main():
         print()
     print(f'All done!')
 
+from ppl import ppl
+def get_name(person):
+    if person in ppl:
+        if ppl[person]:
+            return ppl[person]
+    return person
+
 def get_shifts_for_person(df,person):
     shifts = df.loc[person].replace('',nan).dropna()
     return [f'{date.split(chr(10))[0]} {shift}' for date,shift in zip(shifts.index,shifts.values)]
@@ -105,7 +112,7 @@ def get_days(df): #yields generator
         day['date']['date'] = slice.name
         # date = slice.name
         for row_idx, shift in enumerate(slice):
-            person = slice.index[row_idx]
+            person = get_name(slice.index[row_idx])
             if all([shift != 'ORLOF',shift]):
                 time, type = shift.split(' ')
                 if type == 'UB':
@@ -160,7 +167,7 @@ def doc_from_date_day(day):
                     if shift[1] in day[shift[0]]:
                         temp = ' ' if 'NV' in shift[0] else '\n'
                         ppl = [
-                            p.split(',')[0].split(' ')[0] + temp + p.split(',')[1] for p in day[shift[0]][shift[1]]
+                            p.split(',')[0]+ temp + p.split(',')[1] for p in day[shift[0]][shift[1]]
                         ]
                         ppl = sorted(ppl, key=lambda x: int(x.split(temp)[-1].split(':')[0]))
                         p = cell.paragraphs[0]
