@@ -1,4 +1,8 @@
 #!/Users/odinndagur/.odb/vaktaplan/camelot-env/bin/python3
+
+
+# IMPORTS
+#region [blue2]
 import camelot
 import pandas as pd
 import os
@@ -14,57 +18,47 @@ from math import ceil,floor
 
 import argparse
 import sys
+#endregion
 
+# PARSE ARGS
+#region [pink2]
 parser = argparse.ArgumentParser()
 parser.add_argument('file')
-parser.add_argument('-p','--list-people', action='store_true')
-parser.add_argument('-d','--dayplans', action='store_true')
-parser.add_argument('-o','--output-folder')
-parser.add_argument('-n', '--name')
-parser.add_argument('-s','--save-csv', help='save intermediate table as csv')
+parser.add_argument('-p','--list-people', action='store_true', help='Print a list of people in the current shift plan')
+parser.add_argument('-d','--dayplans', action='store_true', help='Should we generate docx dayplans for each day')
+parser.add_argument('-o','--output-folder', help='Where should we save the dayplans (and csv if chosen)')
+parser.add_argument('-n', '--name', help='Get shifts for specific person, add name of person')
+parser.add_argument('-s','--save-csv', action='store_true', help='save intermediate table as csv')
 args = parser.parse_args(sys.argv[1:])
+#endregion
+
 
 file = args.file
 output_directory = args.output_folder if args.output_folder else os.path.join(os.path.dirname(file),'vaktaplan_output')
 if not os.path.isdir(output_directory):
     os.makedirs(output_directory,exist_ok=True)
 stripped_filename = os.path.splitext(os.path.basename(file))[0]
+input_directory = file.split(os.)
 
-print(f'running on file: {file}')
+print(f'''
+    running on file: {file}
+    outputting to {output_directory}
+''')
 
-def main():
-    global output_df
-    print(f'''
-    To list people add --list-people or -p.
-    To get dayplans add --dayplans or -d.
-    To add specific output folder add --output-folder or -o.
-    ''')
+def main() -> None:
+    #region [subtlepink]
     if file.endswith('.pdf'):
         print('processing pdf')
-        global h,w,new_h,new_w,pdfs
-        from pdf2image import convert_from_path
-        pdfs = convert_from_path(file)
-        with pdfplumber.open(file) as pdf:
-            page_1 = pdf.pages[0]
-        h,w = page_1.height, page_1.width
-        new_h,new_w = pdfs[0].height, pdfs[0].width
-
-        tables = camelot.read_pdf(file,pages='1-end',flavor='lattice',line_scale=50,line_tol=1)
-        add_shift_text(tables)
-        processed_dfs = [process_df(table) for table in tables]
-        # concat fyrst
-        concatenated_dfs = [pd.concat(processed_dfs[offset:offset+get_num_pages(tables)]) for offset in range(0,tables.n,get_num_pages(tables))]
-        # síðan join
-        output_df = concatenated_dfs[0]
-        for df in concatenated_dfs[1:]:
-            output_df = output_df.join(df)
+        output_df = pdf_to_df(file)
         if args.save_csv:
             print(f'Saving to {output_directory} as {stripped_filename}.csv')
             output_df.to_csv(os.path.join(output_directory,stripped_filename + '.csv'))
 
     if file.endswith('.csv'):
         output_df = pd.read_csv(file,index_col=0,header=0)
+    #endregion
 
+    #region [subtlepink]
     if args.dayplans:
         print(f'Generating docx files..')
         days = list(get_days(output_df))
@@ -82,29 +76,57 @@ def main():
         for p in get_people(output_df):
             print(p)
         print('')
+    #endregion
     
+    #region [subtlepink]
     if args.name:
         print()
         for shift in get_shifts_for_person(output_df,args.name):
             print(shift)
         print()
+    #endregion
+    os.system(f'open {output_directory}')
     print(f'All done!')
 
+
+
+#region []
+def pdf_to_df(file: str) -> pd.DataFrame:
+    print('processing pdf')
+    global h,w,new_h,new_w,pdfs
+    from pdf2image import convert_from_path
+    pdfs = convert_from_path(file)
+    with pdfplumber.open(file) as pdf:
+        page_1 = pdf.pages[0]
+    h,w = page_1.height, page_1.width
+    new_h,new_w = pdfs[0].height, pdfs[0].width
+
+    tables = camelot.read_pdf(file,pages='1-end',flavor='lattice',line_scale=50,line_tol=1)
+    add_shift_text(tables)
+    processed_dfs = [process_df(table) for table in tables]
+    # concat fyrst
+    concatenated_dfs = [pd.concat(processed_dfs[offset:offset+get_num_pages(tables)]) for offset in range(0,tables.n,get_num_pages(tables))]
+    # síðan join
+    output_df = concatenated_dfs[0]
+    for df in concatenated_dfs[1:]:
+        output_df = output_df.join(df)
+    return output_df
+
 from ppl import ppl
-def get_name(person):
+def get_name(person: str):
     if person in ppl:
         if ppl[person]:
             return ppl[person]
     return person
 
-def get_shifts_for_person(df,person):
+def get_shifts_for_person(df: pd.DataFrame,person: str) -> str:
     shifts = df.loc[person].replace('',nan).dropna()
     return [f'{date.split(chr(10))[0]} {shift}' for date,shift in zip(shifts.index,shifts.values)]
 
-def get_people(df):
+def get_people(df: pd.DataFrame) -> list[str]:
     return [p for p in list(df.index) if len(p)]
 
-def get_days(df): #yields generator
+def get_days(df: pd.DataFrame): #yields generator
     for idx in range(len(df.columns)):
         day = defaultdict(lambda: defaultdict(list))
         slice = df.iloc[:,idx].replace('',nan).dropna()
@@ -139,9 +161,9 @@ def get_days(df): #yields generator
                     day[type][col].append(','.join([person,time,type,col]))
         yield day
 
-def doc_from_date_day(day):
+def doc_from_date_day(day) -> docx.Document:
     date = day['date']['date']
-    doc = docx.Document('python/fim_proto.docx')
+    doc = docx.Document(os.path.join(os.path.dirname(os.path.abspath(__file__)),'fim_proto.docx'))
     for col_idx,col in enumerate(doc.tables[1].columns):
         for cell in doc.tables[1].column_cells(col_idx):
             if cell.text.strip() == 'dags':
@@ -186,7 +208,7 @@ def doc_from_date_day(day):
     # os.system(f'open {os.path.join(os.getcwd(),output_filename)}')
     return doc
 
-def get_weekday(year=None, month=None, day=None):
+def get_weekday(year:int = None, month:int = None, day:int = None) -> str:
     days = ["Mánudagur", "Þriðjudagur", "Miðvikudagur", "Fimmtudagur", "Föstudagur", "Laugardagur", "Sunnudagur"]
     if not any([year,month,day]):
         raise ValueError('Need to input date')
@@ -199,13 +221,13 @@ def get_weekday(year=None, month=None, day=None):
     inputDate = datetime.date(year=year,month=int(month),day=int(day))
     return days[inputDate.weekday()]
 
-def is_first_page(df):
+def is_first_page(df: pd.DataFrame) -> bool:
     for x in df.iloc[:,0].values:
         if 'Hæf' in x:
             return True
     return False
 
-def get_first_date_cell(df):
+def get_first_date_cell(df: pd.DataFrame) -> tuple[int, int]:
     import re
     for row_idx,row in df.iterrows():
         for col_idx, cell in enumerate(row):
@@ -256,7 +278,7 @@ colors =  {
     (128, 0, 64): 'AS',
     }
 
-def add_shift_text(tables):
+def add_shift_text(tables) -> None:
     for page_num,table in enumerate(tables):
         df = table.df
         for row_num,row in enumerate(table.cells):
@@ -265,7 +287,7 @@ def add_shift_text(tables):
                 if cell_color in colors and (cell.text != '') and re.match('[0-9][0-9]:[0-9][0-9]-[0-9][0-9]:[0-9][0-9]',cell.text):
                     df.iloc[row_num,col_num] += ' ' + colors[cell_color]
 
-def process_df(table):
+def process_df(table) -> pd.DataFrame:
     df = table.df.copy()
     x,y = get_first_date_cell(df)
     df.iloc[y,x-1] = 'Starfsmaður'
@@ -274,6 +296,7 @@ def process_df(table):
     df = df.set_index('Starfsmaður')
     df = df.replace('',nan).dropna(how='all').dropna(how='all',axis=1).replace(nan,'')
     return df
+#endregion
 
 if __name__ == '__main__':
     main()
