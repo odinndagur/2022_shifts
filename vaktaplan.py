@@ -38,16 +38,20 @@ output_directory = args.output_folder if args.output_folder else os.path.join(os
 if not os.path.isdir(output_directory):
     os.makedirs(output_directory,exist_ok=True)
 stripped_filename = os.path.splitext(os.path.basename(file))[0]
-input_directory = file.split(os.)
+input_directory = file.split(os.path.basename(file))[0]
 
 print(f'''
-    running on file: {file}
-    outputting to {output_directory}
+    running on file: {stripped_filename}
+    from directory: {input_directory}
+    outputting to: {output_directory}
 ''')
 
 def main() -> None:
-    #region [subtlepink]
     if file.endswith('.pdf'):
+        csv_path = os.path.join(output_directory,stripped_filename + '.csv')
+        if os.path.exists(csv_path):
+            print('csv exists in directory, using that')
+            print('PSYCH not yet implemented')
         print('processing pdf')
         output_df = pdf_to_df(file)
         if args.save_csv:
@@ -56,9 +60,7 @@ def main() -> None:
 
     if file.endswith('.csv'):
         output_df = pd.read_csv(file,index_col=0,header=0)
-    #endregion
 
-    #region [subtlepink]
     if args.dayplans:
         print(f'Generating docx files..')
         days = list(get_days(output_df))
@@ -76,21 +78,17 @@ def main() -> None:
         for p in get_people(output_df):
             print(p)
         print('')
-    #endregion
     
-    #region [subtlepink]
     if args.name:
         print()
         for shift in get_shifts_for_person(output_df,args.name):
             print(shift)
         print()
-    #endregion
     os.system(f'open {output_directory}')
     print(f'All done!')
 
 
 
-#region []
 def pdf_to_df(file: str) -> pd.DataFrame:
     print('processing pdf')
     global h,w,new_h,new_w,pdfs
@@ -296,7 +294,6 @@ def process_df(table) -> pd.DataFrame:
     df = df.set_index('Starfsmaður')
     df = df.replace('',nan).dropna(how='all').dropna(how='all',axis=1).replace(nan,'')
     return df
-#endregion
 
 if __name__ == '__main__':
     main()
